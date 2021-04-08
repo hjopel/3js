@@ -2,20 +2,13 @@ import './style.css'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import * as dat from 'dat.gui'
-<<<<<<< Updated upstream
-
-=======
-import waterVertex from './shaders/water/vertex.glsl'
-import waterFragment from './shaders/water/fragment.glsl'
+import galaxyVertex from './shaders/galaxy/vertex.glsl'
+import galaxyFragment from './shaders/galaxy/fragment.glsl'
 /**
  * Base
  */
->>>>>>> Stashed changes
 // Debug
-const gui = new dat.GUI({ width: 340 })
-const debugObject = {}
-debugObject.depthColor = '#186691'
-debugObject.surfaceColor = '#9bd8ff'
+const gui = new dat.GUI()
 
 // Canvas
 const canvas = document.querySelector('canvas.webgl')
@@ -23,72 +16,114 @@ const canvas = document.querySelector('canvas.webgl')
 // Scene
 const scene = new THREE.Scene()
 
-<<<<<<< Updated upstream
-// Objects
-const geometry = new THREE.TorusGeometry( .7, .2, 16, 100 );
-
-// Materials
-
-const material = new THREE.MeshBasicMaterial()
-material.color = new THREE.Color(0xff0000)
-
-// Mesh
-const sphere = new THREE.Mesh(geometry,material)
-scene.add(sphere)
-
-// Lights
-
-const pointLight = new THREE.PointLight(0xffffff, 0.1)
-pointLight.position.x = 2
-pointLight.position.y = 3
-pointLight.position.z = 4
-scene.add(pointLight)
-=======
 /**
- * Water
+ * Galaxy
  */
-// Geometry
-const waterGeometry = new THREE.PlaneGeometry(2, 2, 512, 512)
+const parameters = {}
+parameters.count = 200000
+parameters.size = 0.005
+parameters.radius = 5
+parameters.branches = 3
+parameters.spin = 1
+parameters.randomness = 0.5
+parameters.randomnessPower = 3
+parameters.insideColor = '#ff6030'
+parameters.outsideColor = '#1b3984'
 
-// Material
-const waterMaterial = new THREE.ShaderMaterial({
-    vertexShader: waterVertex,
-    fragmentShader: waterFragment,
-    uniforms: {
-        uTime: {value: 0.0},
-        uBigWavesElevation: { value: 0.445 },
-        uBigWavesFrequency: { value: new THREE.Vector2(4, 1.5)},
-        uBigWavesSpeed: { value: 0.75},
+let geometry = null
+let material = null
+let points = null
 
-        uDepthColor: { value: new THREE.Color(debugObject.depthColor)},
-        uSurfaceColor: { value: new THREE.Color(debugObject.surfaceColor)},
-        uColorOffset: { value: 0.08},
-        uColorMultiplier: { value: 5}
-
-
+const generateGalaxy = () =>
+{
+    if(points !== null)
+    {
+        geometry.dispose()
+        material.dispose()
+        scene.remove(points)
     }
-})
 
-gui.add(waterMaterial.uniforms.uBigWavesElevation, 'value').min(0).max(1).step(0.001).name("uBigWavesElevation")
-gui.add(waterMaterial.uniforms.uBigWavesFrequency.value, 'x').min(0).max(10).step(0.001).name("uBigWavesFrequency.x")
-gui.add(waterMaterial.uniforms.uBigWavesFrequency.value, 'y').min(0).max(10).step(0.001).name("uBigWavesFrequency.y")
-gui.add(waterMaterial.uniforms.uBigWavesSpeed, 'value').min(0).max(4).step(0.001).name("uBigWavesSpeed")
-gui.addColor(debugObject, 'depthColor').onChange(()=>{
-    waterMaterial.uniforms.uDepthColor.value.set(debugObject.depthColor)
-})
-gui.addColor(debugObject, 'surfaceColor').onChange(()=>{
-    waterMaterial.uniforms.uSurfaceColor.value.set(debugObject.surfaceColor)
-})
-gui.add(waterMaterial.uniforms.uColorOffset, 'value').min(0).max(1).step(0.001).name('uColorOffset');
-gui.add(waterMaterial.uniforms.uColorMultiplier, 'value').min(0).max(10).step(0.001).name('uColorMultiplier');
+    /**
+     * Geometry
+     */
+    geometry = new THREE.BufferGeometry()
+
+    const positions = new Float32Array(parameters.count * 3)
+    const colors = new Float32Array(parameters.count * 3)
+    const scales = new Float32Array(parameters.count)
+    const randomness = new Float32Array(parameters.count * 3)
+
+    const insideColor = new THREE.Color(parameters.insideColor)
+    const outsideColor = new THREE.Color(parameters.outsideColor)
+
+    for(let i = 0; i < parameters.count; i++)
+    {
+        const i3 = i * 3
+
+        // Position
+        const radius = Math.random() * parameters.radius
+
+        const branchAngle = (i % parameters.branches) / parameters.branches * Math.PI * 2
+
+        const randomX = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : - 1) * parameters.randomness * radius
+        const randomY = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : - 1) * parameters.randomness * radius
+        const randomZ = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : - 1) * parameters.randomness * radius
+
+        positions[i3    ] = Math.cos(branchAngle) * radius
+        positions[i3 + 1] = 0
+        positions[i3 + 2] = Math.sin(branchAngle) * radius
+
+        // Color
+        const mixedColor = insideColor.clone()
+        mixedColor.lerp(outsideColor, radius / parameters.radius)
+
+        colors[i3    ] = mixedColor.r
+        colors[i3 + 1] = mixedColor.g
+        colors[i3 + 2] = mixedColor.b
+
+        randomness[i3] = randomX
+        randomness[i3 + 1] = randomY
+        randomness[i3 + 2] = randomZ
+
+        scales[i] = Math.random()
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+    geometry.setAttribute('aScale', new THREE.BufferAttribute(scales, 1))
+    geometry.setAttribute('aRandomness', new THREE.BufferAttribute(randomness, 3))
 
 
+    /**
+     * Material
+     */
+    material = new THREE.ShaderMaterial({
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        vertexColors: true,
+        vertexShader: galaxyVertex,
+        fragmentShader: galaxyFragment,
+        uniforms: {
+            uSize: { value: 30 * renderer.getPixelRatio()},
+            uTime: { value: 0}
+        }
+    })
 
-// Mesh
-const water = new THREE.Mesh(waterGeometry, waterMaterial)
-water.rotation.x = - Math.PI * 0.5
-scene.add(water)
->>>>>>> Stashed changes
+    /**
+     * Points
+     */
+    points = new THREE.Points(geometry, material)
+    scene.add(points)
+}
+
+
+gui.add(parameters, 'count').min(100).max(1000000).step(100).onFinishChange(generateGalaxy)
+gui.add(parameters, 'radius').min(0.01).max(20).step(0.01).onFinishChange(generateGalaxy)
+gui.add(parameters, 'branches').min(2).max(20).step(1).onFinishChange(generateGalaxy)
+gui.add(parameters, 'randomness').min(0).max(2).step(0.001).onFinishChange(generateGalaxy)
+gui.add(parameters, 'randomnessPower').min(1).max(10).step(0.001).onFinishChange(generateGalaxy)
+gui.addColor(parameters, 'insideColor').onFinishChange(generateGalaxy)
+gui.addColor(parameters, 'outsideColor').onFinishChange(generateGalaxy)
 
 /**
  * Sizes
@@ -118,18 +153,14 @@ window.addEventListener('resize', () =>
  */
 // Base camera
 const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.1, 100)
-<<<<<<< Updated upstream
-camera.position.x = 0
-camera.position.y = 0
-camera.position.z = 2
-=======
-camera.position.set(1, 1, 1)
->>>>>>> Stashed changes
+camera.position.x = 3
+camera.position.y = 3
+camera.position.z = 3
 scene.add(camera)
 
 // Controls
-// const controls = new OrbitControls(camera, canvas)
-// controls.enableDamping = true
+const controls = new OrbitControls(camera, canvas)
+controls.enableDamping = true
 
 /**
  * Renderer
@@ -139,36 +170,21 @@ const renderer = new THREE.WebGLRenderer({
 })
 renderer.setSize(sizes.width, sizes.height)
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+generateGalaxy()
 
 /**
  * Animate
  */
-<<<<<<< Updated upstream
-
-=======
->>>>>>> Stashed changes
 const clock = new THREE.Clock()
 
 const tick = () =>
 {
-<<<<<<< Updated upstream
-
-    const elapsedTime = clock.getElapsedTime()
-
-    // Update objects
-    sphere.rotation.y = .5 * elapsedTime
-
-    // Update Orbital Controls
-    // controls.update()
-=======
     const elapsedTime = clock.getElapsedTime()
 
     // Update controls
     controls.update()
->>>>>>> Stashed changes
 
-    //update shader
-    waterMaterial.uniforms.uTime.value = elapsedTime
+    material.uniforms.uTime.value = elapsedTime
 
     // Render
     renderer.render(scene, camera)
